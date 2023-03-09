@@ -25,6 +25,7 @@ import ch.qos.logback.core.util.FileSize;
 import com.facebook.airlift.event.client.EventClient;
 import com.facebook.airlift.log.Logger;
 import com.facebook.airlift.tracetoken.TraceTokenManager;
+import com.google.common.math.LongMath;
 import io.airlift.units.DataSize;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
@@ -88,6 +89,9 @@ class DelimitedRequestLog
         TimeBasedRollingPolicy<HttpRequestEvent> rollingPolicy = new TimeBasedRollingPolicy<>();
 
         rollingPolicy.setContext(context);
+        // Max History controls the number of archive log periods to keep.
+        // Log Period is determined from the FileNamePattern. In our case, it's a daily rollover.
+        // So, 1 log period will be a day.
         rollingPolicy.setMaxHistory(maxHistory);
         rollingPolicy.setTimeBasedFileNamingAndTriggeringPolicy(triggeringPolicy);
         rollingPolicy.setParent(fileAppender);
@@ -95,6 +99,11 @@ class DelimitedRequestLog
         if (compressionEnabled) {
             rollingPolicy.setFileNamePattern(rollingPolicy.getFileNamePattern() + ".gz");
         }
+
+        // Limit total log size on disk
+        // Ideally, we want to keep maxHistory number of files and not log periods.
+        // We can simulate this by using TotalSizeCap
+        rollingPolicy.setTotalSizeCap(new FileSize(LongMath.saturatedMultiply(maxFileSizeInBytes, maxHistory)));
 
         triggeringPolicy.setContext(context);
         triggeringPolicy.setTimeBasedRollingPolicy(rollingPolicy);
